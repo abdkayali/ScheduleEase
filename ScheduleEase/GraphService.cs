@@ -1,13 +1,19 @@
 ﻿using Azure.Identity;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
 
 namespace ScheduleEase
 {
     internal class GraphService
     {
         private readonly string[] _scopes = new[] { "User.Read" };
-        private const string ClientId = "CLIENT_ID";
+        private const string ClientId = "34aea1ef-ac95-4474-b079-205b0da5308c";
         private const string TenantId = "common";
         private GraphServiceClient _client;
 
