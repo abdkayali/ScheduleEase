@@ -34,14 +34,13 @@
                 x:Name="CounterBtn"
                 Text="Click me"
                 SemanticProperties.Hint="Counts the number of times you click"
-                
+                Clicked="OnScanButtonClicked"
                 HorizontalOptions="Center" />
 
             <Button
                 x:Name="GetUserInfoBtn"
-                Text="Load User Info"
-                SemanticProperties.Hint="Loads user information from Microsoft Graph"
-                Clicked="GetUserInfoBtn_Clicked"
+                Text="Add Test Event"
+                Clicked="Add_Event"
                 HorizontalOptions="Center" />
 
         </VerticalStackLayout>

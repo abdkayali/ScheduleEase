@@ -34,9 +34,7 @@ public partial class MainPage : ContentPage
                 using Stream sourceStream = await photo.OpenReadAsync();
                 using FileStream localFileStream = File.OpenWrite(localFilePath);
 
-                await sourceStream.CopyToAsync(localFileStream);
-
-
+            
                 
                
 
@@ -66,17 +64,18 @@ public partial class MainPage : ContentPage
        
     }
 
-    private async void GetUserInfoBtn_Clicked(object sender, EventArgs e)
+    private async void Add_Event(object sender, EventArgs e)
     {
         if (graphService == null)
         {
             graphService = new GraphService();
         }
-        user = await graphService.GetMyDetailsAsync();
-       HelloLabel.Text = $"Hello, {user.DisplayName}!";
+        
+        user = await graphService.AddEventToCalendar("Pathology event", 3, 10, 10, 0, 2,"this is a body");
+       HelloLabel.Text = $"Done";
     }
 
-    private async void AnalyseImage()
+    private async Task<AnalyzeResult> AnalyseImage(Stream documentStream)
     {
         AzureKeyCredential credential = new AzureKeyCredential(key);
         DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(endpoint), credential);
@@ -84,9 +83,10 @@ public partial class MainPage : ContentPage
         //// sample document
         Uri fileUri = new Uri("https://scontent.ftun2-2.fna.fbcdn.net/v/t1.15752-9/334913916_759827175365600_3302611857041079055_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=ae9488&_nc_ohc=-hLlZu0ENiIAX_14tRQ&_nc_ht=scontent.ftun2-2.fna&oh=03_AdRYXxzfY11ArFW4Dz__QBUN3aoUI1-0Ti2CBw15SNZODA&oe=642F027D");
 
-        AnalyzeDocumentOperation operation = await client.AnalyzeDocumentFromUriAsync(WaitUntil.Completed, "prebuilt-layout", fileUri);
+        AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-layout",documentStream);
 
         AnalyzeResult result = operation.Value;
+        return result;
         
     }
 }
