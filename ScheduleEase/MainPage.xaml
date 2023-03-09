@@ -40,9 +40,8 @@
 
             <Button
                 x:Name="GetUserInfoBtn"
-                Text="Load User Info"
-                SemanticProperties.Hint="Loads user information from Microsoft Graph"
-                Clicked="GetUserInfoBtn_Clicked"
+                Text="Add Test Event"
+                Clicked="Add_Event"
                 HorizontalOptions="Center" />
 
         </VerticalStackLayout>
