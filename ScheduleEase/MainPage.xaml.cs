@@ -28,19 +28,19 @@ public partial class MainPage : ContentPage
 
             if (photo != null)
             {
+
+                var sourceStream = await photo.OpenReadAsync();
+
                 // save the file into local storage
                 string localFilePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
 
-                using Stream sourceStream = await photo.OpenReadAsync();
-                using FileStream localFileStream = File.OpenWrite(localFilePath);
+                FileStream localFileStream = File.OpenWrite(localFilePath);
 
                 await sourceStream.CopyToAsync(localFileStream);
 
+                localFileStream.Close();
+                image.Source = ImageSource.FromFile(localFilePath);
 
-                
-               
-
-              
                 //DescriptionLabel.Text =$"";
                 //for (int i = 0; i < result.Tables.Count; i++)
                 //{
