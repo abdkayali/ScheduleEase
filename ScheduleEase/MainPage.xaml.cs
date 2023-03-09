@@ -56,7 +56,7 @@ public partial class MainPage : ContentPage
                         text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. \n";
                     }
                 }
-                await DisplayAlert("Alert", text, "OK");
+                await DisplayAlert("Alert", text    , "OK");
 
 
 
