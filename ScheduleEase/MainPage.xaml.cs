@@ -2,7 +2,9 @@
 using System.Diagnostics;
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
-
+using ScheduleEase.Models;
+using static System.Net.Mime.MediaTypeNames;
+using System.Globalization;
 
 namespace ScheduleEase;
 
@@ -14,7 +16,8 @@ public partial class MainPage : ContentPage
 
     string endpoint = "https://timetable.cognitiveservices.azure.com/";
     string key = "fe12a19d0c404e44923d2258cdd9160c";
-    string[] TimeTable;
+
+    List<Session> sessions = new List<Session>();
     public MainPage()
     {
         InitializeComponent();
@@ -43,23 +46,34 @@ public partial class MainPage : ContentPage
 
                 AnalyzeResult result = await AnalyzeImage(File.OpenRead(localFilePath));
 
+                AddSessions(result);
 
-                String text =$"";
-                for (int i = 0; i < result.Tables.Count; i++)
+                string text = $"";
+                foreach (var item in sessions)
                 {
-                    Debug.WriteLine($"table {i}");
-                    DocumentTable table = result.Tables[i];
-                    text += $"  Table {i} has {table.RowCount} rows and {table.ColumnCount} columns.";
-
-                    foreach (DocumentTableCell cell in table.Cells)
-                    {
-                        text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. \n";
-                    }
+                    text += item.ToString() + "\n";
                 }
-                await DisplayAlert("Alert", text    , "OK");
+                //string text = $"";
+                //foreach (var item in result.Paragraphs)
+                //{
+                //    text += item.Content;
+                //    text += "\n";
+                //}
+                await DisplayAlert("Alert", text, "OK");
 
+                //text = $"";
+                //for (int i = 0; i < result.Tables.Count; i++)
+                //{
+                //    Debug.WriteLine($"table {i}");
+                //    DocumentTable table = result.Tables[i];
+                //    text += $"  Table {i} has {table.RowCount} rows and {table.ColumnCount} columns.";
 
-
+                //    foreach (DocumentTableCell cell in table.Cells)
+                //    {
+                //        text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. And ColumnSpan: '{cell.ColumnSpan}' \n";
+                //    }
+                //}
+                //await DisplayAlert("Alert", text    , "OK");
             }
         }
         catch (Exception ex)
@@ -95,6 +109,44 @@ public partial class MainPage : ContentPage
         AnalyzeResult result = operation.Value;
         return result;
         
+    }
+    void AddSessions(AnalyzeResult result)
+    {
+        for (int i = 0; i < result.Tables.Count; i++)
+        {
+            DocumentTable table = result.Tables[i];
+            DateTime date = new DateTime();
+
+            foreach (DocumentTableCell cell in table.Cells)
+            {
+
+                if(cell.ColumnIndex == 0 && cell.RowIndex != 0)
+                {
+                    try
+                    {
+                        string dateLiteral = cell.Content.Substring(cell.Content.IndexOf(" ") + 1);
+                        date = DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture);
+                        continue;
+                    }
+                    catch(Exception ex)
+                    {
+
+                    }
+                }
+                if(cell.ColumnIndex > 1 && cell.RowIndex > 0)
+                {
+                    DateTime startDate = date.AddHours(12 + cell.ColumnIndex);
+
+                    sessions.Add(new Session
+                    {
+                        Name = cell.Content,
+                        StartTime = startDate,
+                        EndTime = startDate.AddHours(cell.ColumnSpan),
+                    });
+                }
+                
+            }
+        }
     }
 }
 
