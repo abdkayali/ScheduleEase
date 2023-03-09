@@ -41,18 +41,23 @@ public partial class MainPage : ContentPage
                 localFileStream.Close();
                 image.Source = ImageSource.FromFile(localFilePath);
 
-                //DescriptionLabel.Text =$"";
-                //for (int i = 0; i < result.Tables.Count; i++)
-                //{
-                //    Debug.WriteLine($"table {i}");
-                //    DocumentTable table = result.Tables[i];
-                //    DescriptionLabel.Text += $"  Table {i} has {table.RowCount} rows and {table.ColumnCount} columns.";
+                AnalyzeResult result = await AnalyzeImage(File.OpenRead(localFilePath));
 
-                //    foreach (DocumentTableCell cell in table.Cells)
-                //    {
-                //        DescriptionLabel.Text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. \n";
-                //    }
-                //}
+
+                String text =$"";
+                for (int i = 0; i < result.Tables.Count; i++)
+                {
+                    Debug.WriteLine($"table {i}");
+                    DocumentTable table = result.Tables[i];
+                    text += $"  Table {i} has {table.RowCount} rows and {table.ColumnCount} columns.";
+
+                    foreach (DocumentTableCell cell in table.Cells)
+                    {
+                        text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. \n";
+                    }
+                }
+                await DisplayAlert("Alert", text, "OK");
+
 
 
             }
@@ -77,7 +82,7 @@ public partial class MainPage : ContentPage
        HelloLabel.Text = $"Done";
     }
 
-    private async Task<AnalyzeResult> AnalyseImage(Stream documentStream)
+    private async Task<AnalyzeResult> AnalyzeImage(Stream documentStream)
     {
         AzureKeyCredential credential = new AzureKeyCredential(key);
         DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(endpoint), credential);
