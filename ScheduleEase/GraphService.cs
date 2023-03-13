@@ -46,6 +46,18 @@ namespace ScheduleEase
 
         }
 
+        public async Task AddEventToCalendar(string subject, DateTimeTimeZone start, DateTimeTimeZone end, string body)
+        {
+
+            Event newEvent = new Event
+            {
+                Subject = subject,
+                Start = start,
+                End = end,
+                Body = new ItemBody { ContentType = BodyType.Text, Content =  body }
+            };
+            await _client.Me.Calendar.Events.PostAsync(newEvent);
+        }
         public async Task<User> AddEventToCalendar(string eventName,int month,int day,int hour,int minute,int Duration,string body="" )
         {
             try
@@ -53,7 +65,6 @@ namespace ScheduleEase
 
                 DateTimeOffset eventStart = new DateTimeOffset(DateTime.Now.Year, month, day
                     , hour, minute, 0, TimeSpan.FromHours(1)); // UTC+1
-
                 DateTimeOffset eventEnd = new DateTimeOffset(eventStart.Year, eventStart.Month, eventStart.Day
                     , eventStart.Hour+Duration, eventStart.Minute, 0, TimeSpan.FromHours(1)); // UTC+1
 
@@ -67,10 +78,7 @@ namespace ScheduleEase
                 };
 
               var result=  await _client.Me.Calendar.Events.PostAsync(newEvent);
-                return null;
-                    
-
-                Console.WriteLine("Event added to your calendar!");
+              return null;                    
             }
             catch (Exception ex)
             {

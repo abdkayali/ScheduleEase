@@ -3,16 +3,13 @@ using System.Diagnostics;
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using ScheduleEase.Models;
-using static System.Net.Mime.MediaTypeNames;
 using System.Globalization;
 
 namespace ScheduleEase;
 
 public partial class MainPage : ContentPage
 {
-    int count = 0;
     private GraphService graphService;
-    private User user;
 
     string endpoint = "https://timetable.cognitiveservices.azure.com/";
     string key = "fe12a19d0c404e44923d2258cdd9160c";
@@ -53,36 +50,24 @@ public partial class MainPage : ContentPage
                 {
                     text += item.ToString() + "\n";
                 }
-                //string text = $"";
-                //foreach (var item in result.Paragraphs)
-                //{
-                //    text += item.Content;
-                //    text += "\n";
-                //}
-                await DisplayAlert("Alert", text, "OK");
 
-                //text = $"";
-                //for (int i = 0; i < result.Tables.Count; i++)
-                //{
-                //    Debug.WriteLine($"table {i}");
-                //    DocumentTable table = result.Tables[i];
-                //    text += $"  Table {i} has {table.RowCount} rows and {table.ColumnCount} columns.";
-
-                //    foreach (DocumentTableCell cell in table.Cells)
-                //    {
-                //        text += $"    Cell ({cell.RowIndex}, {cell.ColumnIndex}) has content: '{cell.Content}'. And ColumnSpan: '{cell.ColumnSpan}' \n";
-                //    }
-                //}
-                //await DisplayAlert("Alert", text    , "OK");
+                if(await DisplayAlert("Alert", text, "Add To Calendar", "Cancel"))
+                {
+                    if (graphService == null)
+                    {
+                        graphService = new GraphService();
+                    }
+                    foreach (var item in sessions)
+                    {
+                        await AddSessionToCalendar(item);
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex.Message);
         }
-        count++;
-
-       
     }
 
     private async void Add_Event(object sender, EventArgs e)
@@ -92,7 +77,7 @@ public partial class MainPage : ContentPage
             graphService = new GraphService();
         }
         
-        user = await graphService.AddEventToCalendar("Pathology event", 3, 10, 10, 0, 2,"this is a body");
+       await graphService.AddEventToCalendar("Pathology event", 3, 10, 10, 0, 2,"this is a body");
        HelloLabel.Text = $"Done";
     }
 
@@ -112,11 +97,12 @@ public partial class MainPage : ContentPage
     }
     void AddSessions(AnalyzeResult result)
     {
+        sessions.Clear();
         for (int i = 0; i < result.Tables.Count; i++)
         {
             DocumentTable table = result.Tables[i];
             DateTime date = new DateTime();
-
+            bool first_date = true;
             foreach (DocumentTableCell cell in table.Cells)
             {
 
@@ -124,28 +110,79 @@ public partial class MainPage : ContentPage
                 {
                     try
                     {
-                        string dateLiteral = cell.Content.Substring(cell.Content.IndexOf(" ") + 1);
+                        string dateLiteral = cell.Content.Substring(cell.Content.IndexOf(" ") + 1).Replace(" ", "");
+                        if(!first_date)
+                        {
+                            if(DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture) != date.AddDays(1))
+                            {
+                                DisplayAlert("Error", "There was an error scanning your timetable. Please make sure the picture is in good format and quality", "Try again");
+                                break;
+                            }
+                        }
+                        first_date = false;
                         date = DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture);
                         continue;
                     }
                     catch(Exception ex)
                     {
-
+                        Debug.WriteLine(ex.Message);
+                        date = date.AddDays(1);
                     }
                 }
                 if(cell.ColumnIndex > 1 && cell.RowIndex > 0)
                 {
                     DateTime startDate = date.AddHours(12 + cell.ColumnIndex);
-
-                    sessions.Add(new Session
-                    {
-                        Name = cell.Content,
-                        StartTime = startDate,
-                        EndTime = startDate.AddHours(cell.ColumnSpan),
-                    });
+                    if(String.IsNullOrEmpty(cell.Content))
+                        sessions.Add(new Session
+                        {
+                            Name = GetSessionName(cell.Content),
+                            Professor = GetProfessorName(cell.Content),
+                            StartTime = startDate,
+                            EndTime = startDate.AddHours(cell.ColumnSpan),
+                        });
                 }
                 
             }
+        }
+    }
+    string GetProfessorName(string content)
+    {
+        if (content.Contains("Pr"))
+        {
+            return "Pr" + content.Split("Pr")[1];
+        }
+        if (content.Contains("Dr"))
+        {
+            return "Dr" + content.Split("Dr")[1];
+        }
+        return String.Empty;
+    }
+    string GetSessionName(string content)
+    {
+        if (content.Contains("Pr"))
+        {
+            content = content.Split("Pr")[0];
+        }
+        else if (content.Contains("Dr"))
+        {
+            content = content.Split("Dr")[0];
+        }
+        return content.Trim();
+    }
+    private async Task AddSessionToCalendar(Session session)
+    {
+        try
+        {
+            if (graphService == null)
+            {
+                graphService = new GraphService();
+            }
+            string timezone = "W. Central Africa Standard Time";
+            await graphService.AddEventToCalendar(session.Name, new DateTimeTimeZone { DateTime = session.StartTime.ToString("o"), TimeZone = timezone }, new DateTimeTimeZone { DateTime = session.EndTime.ToString("o"), TimeZone = timezone }, session.ToString());
+        }
+        catch(Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
         }
     }
 }
