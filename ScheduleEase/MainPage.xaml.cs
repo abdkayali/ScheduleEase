@@ -1,9 +1,12 @@
 ﻿using Microsoft.Graph.Models;
+using ScheduleEase.Services;
 using System.Diagnostics;
-using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using ScheduleEase.Models;
 using System.Globalization;
+using Microsoft.Identity.Client;
+using ScheduleEase.Helpers;
+using Microsoft.Datasync.Client;
 
 namespace ScheduleEase;
 
@@ -11,90 +14,103 @@ public partial class MainPage : ContentPage
 {
     private GraphService graphService;
 
-    string endpoint = "https://timetable.cognitiveservices.azure.com/";
-    string key = "fe12a19d0c404e44923d2258cdd9160c";
-
     List<Session> sessions = new List<Session>();
     public MainPage()
     {
         InitializeComponent();
+        
+        //DisplayAlert("Salem",AppInfo.Current.PackageName,"Back");
     }
-
-    private async void OnScanButtonClicked(object sender, EventArgs e)
+    public User user;
+    private async void OnUploadButtonClicked(object sender, EventArgs e)
     {
         try
         {
+            loadingText.Text = "Choose an image..";
+            SwitchLoading();
             FileResult photo = await MediaPicker.Default.PickPhotoAsync();
 
             if (photo != null)
             {
-
-                var sourceStream = await photo.OpenReadAsync();
-
-                // save the file into local storage
-                string localFilePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
-
-                FileStream localFileStream = File.OpenWrite(localFilePath);
-
-                await sourceStream.CopyToAsync(localFileStream);
-
-                localFileStream.Close();
-                image.Source = ImageSource.FromFile(localFilePath);
-
-                AnalyzeResult result = await AnalyzeImage(File.OpenRead(localFilePath));
-
-                AddSessions(result);
-
-                string text = $"";
-                foreach (var item in sessions)
-                {
-                    text += item.ToString() + "\n";
-                }
-
-                if(await DisplayAlert("Alert", text, "Add To Calendar", "Cancel"))
-                {
-                    if (graphService == null)
-                    {
-                        graphService = new GraphService();
-                    }
-                    foreach (var item in sessions)
-                    {
-                        await AddSessionToCalendar(item);
-                    }
-                }
+                await ScanImage(photo);
             }
+            SwitchLoading();
+
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex.Message);
+            loadingStack.IsVisible = false;
+            backgroundBox.IsVisible = false;
         }
     }
-
-    private async void Add_Event(object sender, EventArgs e)
+    private async void OnScanButtonClicked(object sender, EventArgs e)
     {
-        if (graphService == null)
+        try
         {
-            graphService = new GraphService();
+            loadingText.Text = "Please take a picture..";
+            SwitchLoading();
+            FileResult photo = OperatingSystem.IsWindows() ? await CaptureAsync() : await MediaPicker.Default.CapturePhotoAsync();
+
+            if (photo != null)
+            {
+                await ScanImage(photo);
+            }
+            SwitchLoading();
         }
-        
-       await graphService.AddEventToCalendar("Pathology event", 3, 10, 10, 0, 2,"this is a body");
-       HelloLabel.Text = $"Done";
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+            loadingStack.IsVisible = false;
+            backgroundBox.IsVisible = false;
+        }
     }
 
-    private async Task<AnalyzeResult> AnalyzeImage(Stream documentStream)
+    private async Task ScanImage(FileResult photo)
     {
-        AzureKeyCredential credential = new AzureKeyCredential(key);
-        DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(endpoint), credential);
+        loadingText.Text = "Scanning Image";
+        var sourceStream = await photo.OpenReadAsync();
 
-        //// sample document
-        Uri fileUri = new Uri("https://scontent.ftun2-2.fna.fbcdn.net/v/t1.15752-9/334913916_759827175365600_3302611857041079055_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=ae9488&_nc_ohc=-hLlZu0ENiIAX_14tRQ&_nc_ht=scontent.ftun2-2.fna&oh=03_AdRYXxzfY11ArFW4Dz__QBUN3aoUI1-0Ti2CBw15SNZODA&oe=642F027D");
+        // save the file into local storage
+        string localFilePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
 
-        AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-layout",documentStream);
+        FileStream localFileStream = File.OpenWrite(localFilePath);
 
-        AnalyzeResult result = operation.Value;
-        return result;
-        
+        await sourceStream.CopyToAsync(localFileStream);
+
+        localFileStream.Close();
+
+        image.Source = ImageSource.FromFile(localFilePath);
+        SemanticProperties.SetDescription(image, "Your timetable");
+
+        AnalyzeResult result = await AzureService.AnalyzeImage(File.OpenRead(localFilePath));
+        loadingText.Text = "Finishing";
+        AddSessions(result);
+
+        string text = $"";
+        foreach (var item in sessions)
+        {
+            text += item.ToString() + "\n";
+        }
+
+
+        if (await DisplayAlert("Alert", text, "Add To Calendar", "Cancel"))
+        {
+            loadingText.Text = "Adding sessions to your calendar";
+
+            if (graphService == null)
+            {
+                graphService = new GraphService();
+            }
+            foreach (var item in sessions)
+            {
+                await AddSessionToCalendar(item);
+            }
+            loadingText.Text = "Finishing...";
+            DisplayAlert("Success", "Sessions added successfully to your calendar", "Close");
+        }
     }
+
     void AddSessions(AnalyzeResult result)
     {
         sessions.Clear();
@@ -106,14 +122,14 @@ public partial class MainPage : ContentPage
             foreach (DocumentTableCell cell in table.Cells)
             {
 
-                if(cell.ColumnIndex == 0 && cell.RowIndex != 0)
+                if (cell.ColumnIndex == 0 && cell.RowIndex != 0)
                 {
                     try
                     {
                         string dateLiteral = cell.Content.Substring(cell.Content.IndexOf(" ") + 1).Replace(" ", "");
-                        if(!first_date)
+                        if (!first_date)
                         {
-                            if(DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture) != date.AddDays(1))
+                            if (DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture) != date.AddDays(1))
                             {
                                 DisplayAlert("Error", "There was an error scanning your timetable. Please make sure the picture is in good format and quality", "Try again");
                                 break;
@@ -123,16 +139,16 @@ public partial class MainPage : ContentPage
                         date = DateTime.ParseExact(dateLiteral, "dd/MM/yyyy", CultureInfo.CurrentCulture);
                         continue;
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         Debug.WriteLine(ex.Message);
                         date = date.AddDays(1);
                     }
                 }
-                if(cell.ColumnIndex > 1 && cell.RowIndex > 0)
+                if (cell.ColumnIndex > 1 && cell.RowIndex > 0)
                 {
                     DateTime startDate = date.AddHours(12 + cell.ColumnIndex);
-                    if(String.IsNullOrEmpty(cell.Content))
+                    if (!String.IsNullOrEmpty(cell.Content))
                         sessions.Add(new Session
                         {
                             Name = GetSessionName(cell.Content),
@@ -141,7 +157,7 @@ public partial class MainPage : ContentPage
                             EndTime = startDate.AddHours(cell.ColumnSpan),
                         });
                 }
-                
+
             }
         }
     }
@@ -180,10 +196,27 @@ public partial class MainPage : ContentPage
             string timezone = "W. Central Africa Standard Time";
             await graphService.AddEventToCalendar(session.Name, new DateTimeTimeZone { DateTime = session.StartTime.ToString("o"), TimeZone = timezone }, new DateTimeTimeZone { DateTime = session.EndTime.ToString("o"), TimeZone = timezone }, session.ToString());
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             Debug.WriteLine(ex.Message);
         }
     }
+    public async Task<FileResult> CaptureAsync(MediaPickerOptions options = null, bool photo = true)
+    {
+        //var captureUi = new CameraCaptureUI(options);
+
+        //var file = await captureUi.CaptureFileAsync();
+
+        //if (file != null)
+        //    return new FileResult(file.Path, file.ContentType);
+
+        return null;
+    }
+    private void SwitchLoading()
+    {
+        loadingStack.IsVisible = !loadingStack.IsVisible;
+        backgroundBox.IsVisible = !backgroundBox.IsVisible;
+    }
+    
 }
 
