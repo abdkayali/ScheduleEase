@@ -118,6 +118,7 @@ public partial class MainPage : ContentPage
         {
             DocumentTable table = result.Tables[i];
             DateTime date = new DateTime();
+            int multiplier = table.ColumnCount <= 4 ? 2 : 1;
             bool first_date = true;
             foreach (DocumentTableCell cell in table.Cells)
             {
@@ -147,14 +148,15 @@ public partial class MainPage : ContentPage
                 }
                 if (cell.ColumnIndex > 1 && cell.RowIndex > 0)
                 {
-                    DateTime startDate = date.AddHours(12 + cell.ColumnIndex);
+                    DateTime startDate = date.AddHours(12 + cell.ColumnIndex + (cell.ColumnIndex - 2) * (multiplier - 1));
+                    
                     if (!String.IsNullOrEmpty(cell.Content))
                         sessions.Add(new Session
                         {
                             Name = GetSessionName(cell.Content),
                             Professor = GetProfessorName(cell.Content),
                             StartTime = startDate,
-                            EndTime = startDate.AddHours(cell.ColumnSpan),
+                            EndTime = startDate.AddHours(cell.ColumnSpan * multiplier),
                         });
                 }
 
